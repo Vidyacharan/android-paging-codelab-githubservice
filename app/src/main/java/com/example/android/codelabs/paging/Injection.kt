@@ -18,7 +18,7 @@ package com.example.android.codelabs.paging
 
 import androidx.lifecycle.ViewModelProvider
 import androidx.savedstate.SavedStateRegistryOwner
-import com.example.android.codelabs.paging.api.GithubService
+import com.example.android.codelabs.paging.network.api.GithubService
 import com.example.android.codelabs.paging.data.GithubRepository
 import com.example.android.codelabs.paging.ui.ViewModelFactory
 

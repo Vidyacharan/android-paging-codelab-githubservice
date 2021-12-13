@@ -14,8 +14,9 @@
  * limitations under the License.
  */
 
-package com.example.android.codelabs.paging.api
+package com.example.android.codelabs.paging.network.api
 
+import com.example.android.codelabs.paging.network.model.RepoSearchResponse
 import okhttp3.OkHttpClient
 import okhttp3.logging.HttpLoggingInterceptor
 import okhttp3.logging.HttpLoggingInterceptor.Level
@@ -25,7 +26,8 @@ import retrofit2.http.GET
 import retrofit2.http.Query
 
 const val IN_QUALIFIER = "in:name,description"
-
+// GitHub page API is 1 based: https://developer.github.com/v3/#pagination
+internal const val GITHUB_STARTING_PAGE_INDEX = 1
 /**
  * Github API communication setup via Retrofit.
  */
