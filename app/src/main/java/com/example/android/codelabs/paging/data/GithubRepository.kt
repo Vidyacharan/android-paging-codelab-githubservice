@@ -16,93 +16,47 @@
 
 package com.example.android.codelabs.paging.data
 
-import android.util.Log
-import com.example.android.codelabs.paging.api.GithubService
-import com.example.android.codelabs.paging.api.IN_QUALIFIER
-import com.example.android.codelabs.paging.model.Repo
-import com.example.android.codelabs.paging.model.RepoSearchResult
+import androidx.paging.Pager
+import androidx.paging.PagingConfig
+import androidx.paging.PagingData
+import androidx.paging.map
+import com.example.android.codelabs.paging.network.api.GithubService
+import com.example.android.codelabs.paging.network.model.RepoApiModel
+import com.example.android.codelabs.paging.network.GithubPagingSource
 import kotlinx.coroutines.flow.Flow
-import kotlinx.coroutines.flow.MutableSharedFlow
-import retrofit2.HttpException
-import java.io.IOException
-
-// GitHub page API is 1 based: https://developer.github.com/v3/#pagination
-private const val GITHUB_STARTING_PAGE_INDEX = 1
+import kotlinx.coroutines.flow.map
 
 /**
  * Repository class that works with local and remote data sources.
  */
 class GithubRepository(private val service: GithubService) {
 
-    // keep the list of all results received
-    private val inMemoryCache = mutableListOf<Repo>()
-
-    // shared flow of results, which allows us to broadcast updates so
-    // the subscriber will have the latest data
-    private val searchResults = MutableSharedFlow<RepoSearchResult>(replay = 1)
-
-    // keep the last requested page. When the request is successful, increment the page number.
-    private var lastRequestedPage = GITHUB_STARTING_PAGE_INDEX
-
-    // avoid triggering multiple requests in the same time
-    private var isRequestInProgress = false
-
     /**
      * Search repositories whose names match the query, exposed as a stream of data that will emit
      * every time we get more data from the network.
      */
-    suspend fun getSearchResultStream(query: String): Flow<RepoSearchResult> {
-        Log.d("GithubRepository", "New query: $query")
-        lastRequestedPage = 1
-        inMemoryCache.clear()
-        requestAndSaveData(query)
 
-        return searchResults
-    }
-
-    suspend fun requestMore(query: String) {
-        if (isRequestInProgress) return
-        val successful = requestAndSaveData(query)
-        if (successful) {
-            lastRequestedPage++
+    fun getSearchResult(query: String): Flow<PagingData<RepoModel>> = Pager(
+        config = PagingConfig(
+            pageSize = NETWORK_PAGE_SIZE,
+            enablePlaceholders = false
+        ),
+        pagingSourceFactory = { GithubPagingSource(service, query) }
+    ).flow
+        .map { pagingData ->
+            pagingData.map { it.toRepoModel() }
         }
-    }
 
-    suspend fun retry(query: String) {
-        if (isRequestInProgress) return
-        requestAndSaveData(query)
-    }
-
-    private suspend fun requestAndSaveData(query: String): Boolean {
-        isRequestInProgress = true
-        var successful = false
-
-        val apiQuery = query + IN_QUALIFIER
-        try {
-            val response = service.searchRepos(apiQuery, lastRequestedPage, NETWORK_PAGE_SIZE)
-            Log.d("GithubRepository", "response $response")
-            val repos = response.items ?: emptyList()
-            inMemoryCache.addAll(repos)
-            val reposByName = reposByName(query)
-            searchResults.emit(RepoSearchResult.Success(reposByName))
-            successful = true
-        } catch (exception: IOException) {
-            searchResults.emit(RepoSearchResult.Error(exception))
-        } catch (exception: HttpException) {
-            searchResults.emit(RepoSearchResult.Error(exception))
-        }
-        isRequestInProgress = false
-        return successful
-    }
-
-    private fun reposByName(query: String): List<Repo> {
-        // from the in memory cache select only the repos whose name or description matches
-        // the query. Then order the results.
-        return inMemoryCache.filter {
-            it.name.contains(query, true) ||
-                    (it.description != null && it.description.contains(query, true))
-        }.sortedWith(compareByDescending<Repo> { it.stars }.thenBy { it.name })
-    }
+    private fun RepoApiModel.toRepoModel() = RepoModel(
+        id = id,
+        name = name,
+        fullName = fullName,
+        description = description,
+        url = url,
+        stars = stars,
+        forks = forks,
+        language = language
+    )
 
     companion object {
         const val NETWORK_PAGE_SIZE = 30
